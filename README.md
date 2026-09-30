@@ -80,47 +80,72 @@ Alias de importación disponibles: `@pages/*`, `@components/*`, `@fixtures/*`, `
 
 ## Reporte PDF de evidencias
 
-Cada ejecución crea una carpeta con la fecha y genera:
+Cada ejecución genera documentos de evidencia con formato de **plantilla de ejecución de QA**
+(como los que se diligencian en una prueba manual):
 
 ```
 evidence-report/
 └── 20260930-153000/
-    ├── reporte-evidencias.pdf        # consolidado con todos los casos
-    └── casos/                        # un PDF de evidencia por caso
-        ├── 01-compra-completa-de-extremo-a-extremo-smoke-chromium.pdf
-        ├── 02-el-codigo-postal-es-obligatorio-regression-chromium.pdf
+    ├── reporte-evidencias.pdf        # informe consolidado
+    └── casos/                        # un documento de evidencia por caso
+        ├── cp-login-001-usuario-estandar-inicia-sesion-correctamente-chromium.pdf
+        ├── cp-chk-001-compra-completa-de-extremo-a-extremo-chromium.pdf
         └── ...
 ```
 
-- **Consolidado:** portada con fecha, duración, resultado global, entorno, indicadores
-  (total, exitosos, fallidos, inestables, omitidos, % de éxito), tabla resumen y una sección por caso.
-- **PDF por caso:** evidencia puntual e independiente de cada caso: suite, archivo, navegador,
-  estado, duración, etiquetas, pasos (✓/✗), error si falló y **pantallazos de evidencia**.
-- Todo caso tiene al menos un pantallazo: `screenshot: 'on'` agrega la **captura final del caso**
-  aunque el test no use `evidence`.
+**Documento por caso**
 
-Las evidencias se registran desde los tests con el fixture `evidence`:
+1. Encabezado del documento (código del caso, proyecto, ambiente).
+2. Información general: ID, nombre, prioridad, módulo, requisito/HU, ejecutado por, fecha,
+   hora de inicio y fin, ambiente/URL, navegador y resolución, versión/build.
+3. Objetivo del caso y precondiciones.
+4. Tabla de pasos: **acción · datos de prueba · resultado esperado · resultado obtenido · estado**.
+5. Evidencias: un pantallazo por paso, enmarcado como ventana de navegador con la **URL y la hora** de la captura.
+6. Resultado (APROBADO / FALLIDO) con observaciones (detalle del error si falló).
+7. Bloque de firmas: ejecutado por, revisado por, aprobado por.
+
+**Informe consolidado:** portada con datos de la ejecución, indicadores, tabla de todos los casos,
+firmas y, a continuación, el documento de cada caso.
+
+### Cómo documentar un caso
 
 ```ts
 test('compra completa @smoke', async ({ loggedInPage, cartPage, evidence }) => {
-  // Ejecuta el paso y captura la pantalla al terminar (aunque falle)
-  await evidence.step('agregar productos al carrito', async () => {
-    await loggedInPage.addToCart(products.backpack);
-    await loggedInPage.header.openCart();
+  evidence.info({
+    id: 'CP-CHK-001',
+    priority: 'Alta',
+    requirement: 'HU-12',                       // opcional
+    description: 'Verificar que un usuario puede completar una compra.',
+    preconditions: ['Sesión iniciada con standard_user.', 'Carrito vacío.'],
   });
 
-  // Captura puntual con descripción
-  await evidence.capture('carrito con productos');
+  // Ejecuta el paso y toma el pantallazo al terminar (también si falla)
+  await evidence.step('Agregar productos y abrir el carrito', async () => {
+    await loggedInPage.addToCart(products.backpack);
+    await loggedInPage.header.openCart();
+  }, {
+    data: products.backpack,
+    expected: 'El carrito muestra el producto seleccionado.',
+  });
+
+  // Punto de verificación con pantallazo, sin acciones
+  await evidence.capture('Verificar el total', { expected: 'El total incluye impuestos.' });
 });
 ```
 
-Opciones del reporter en `playwright.config.ts`: `title`, `project`, `outputDir`, `fileName`,
-`consolidated` (PDF consolidado, por defecto `true`), `perTest` (PDF por caso, por defecto `true`),
-`includeAutoScreenshots`, `keepHtml` y `launchOptions`. Para desactivarlo en una ejecución:
-`PDF_REPORT=false npx playwright test` (en PowerShell: `$env:PDF_REPORT='false'; npx playwright test`).
+Si un caso no usa `evidence`, igual se documenta: sus `test.step` forman la tabla de pasos y
+`screenshot: 'on'` aporta el pantallazo del estado final.
 
-> El PDF se genera con el Chromium de Playwright, así que debe estar instalado
-> (`npx playwright install chromium`) aunque ejecutes los tests solo en Firefox o WebKit.
+### Configuración
+
+- Variables de entorno (ver `.env.example`): `TESTER` (ejecutado por), `TEST_ENV` (ambiente), `APP_VERSION` (versión/build).
+- Opciones del reporter en `playwright.config.ts`: `title`, `project`, `environment`, `executedBy`,
+  `appVersion`, `consolidated`, `perTest`, `signatures`, `includeAutoScreenshots`, `exclude`, `keepHtml`, `outputDir`, `fileName`.
+- Desactivarlo en una ejecución: `PDF_REPORT=false npx playwright test`
+  (PowerShell: `$env:PDF_REPORT='false'; npx playwright test`).
+- Con varios navegadores se genera un documento por caso y navegador; para un único juego usa `npm run test:chromium`.
+
+> Los PDF se generan con el Chromium de Playwright (`npx playwright install chromium`).
 
 ## Playwright MCP
 

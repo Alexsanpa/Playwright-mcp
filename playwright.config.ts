@@ -23,8 +23,10 @@ export default defineConfig({
           [
             './src/reporters/pdf-evidence-reporter.ts',
             {
-              title: 'Reporte de evidencias de pruebas',
+              title: 'Informe de ejecución de pruebas',
               project: 'Sauce Demo · Playwright + POM',
+              environment: process.env.TEST_ENV ?? 'QA',
+              executedBy: process.env.TESTER, // por defecto, el usuario del sistema
               outputDir: 'evidence-report',
               consolidated: true, // reporte-evidencias.pdf con todos los casos
               perTest: true, // casos/NN-<caso>-<navegador>.pdf, uno por caso

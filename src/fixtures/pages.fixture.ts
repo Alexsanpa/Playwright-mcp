@@ -1,7 +1,7 @@
 import { test as base, expect } from '@playwright/test';
 import { CartPage, CheckoutPage, InventoryPage, LoginPage } from '../pages';
 import { users } from '../data/users';
-import { Evidence } from '../utils/evidence';
+import { annotateEnvironment, CASE_ANNOTATION_PREFIX, Evidence } from '../utils/evidence';
 
 type Pages = {
   loginPage: LoginPage;
@@ -27,7 +27,15 @@ export const test = base.extend<Pages & Session>({
   cartPage: async ({ page }, use) => use(new CartPage(page)),
   checkoutPage: async ({ page }, use) => use(new CheckoutPage(page)),
 
-  evidence: async ({ page }, use, testInfo) => use(new Evidence(page, testInfo)),
+  // `auto`: todos los casos registran navegador/resolución para el documento de evidencia.
+  evidence: [
+    async ({ page, browser }, use, testInfo) => {
+      annotateEnvironment(testInfo, browser, page);
+      await use(new Evidence(page, testInfo));
+      testInfo.annotations.push({ type: `${CASE_ANNOTATION_PREFIX}finalUrl`, description: page.url() });
+    },
+    { auto: true },
+  ],
 
   loggedInPage: async ({ loginPage, inventoryPage }, use) => {
     await loginPage.goto();

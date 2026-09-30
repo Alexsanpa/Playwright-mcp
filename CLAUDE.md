@@ -18,9 +18,11 @@ Aplicación bajo prueba: https://www.saucedemo.com (atributo de test: `data-test
 6. Etiqueta cada test con `@smoke` o `@regression` en el título.
 7. Los métodos de Page Object son acciones de negocio (`login`, `addToCart`) o aserciones `expect...`.
    Nada de `waitForTimeout`.
-8. Usa el fixture `evidence` para registrar evidencias: `evidence.step('descripción', async () => {...})`
-   en los pasos de negocio y `evidence.capture('descripción')` en los puntos de verificación clave.
-   Las capturas aparecen en el PDF consolidado y en el PDF de cada caso (`evidence-report/<fecha>/casos/`).
+8. Documenta cada caso para el reporte PDF de evidencias:
+   `evidence.info({ id, priority, description, preconditions })` al inicio del test y
+   `evidence.step('acción', async () => {...}, { data, expected })` para cada paso de negocio
+   (usa `evidence.capture('verificación', { expected })` para verificaciones sin acciones).
+   IDs con el formato `CP-<MÓDULO>-NNN`. Nunca escribas contraseñas en `data` (usa `********`).
 9. Cuando el MCP genere código "crudo", refactorízalo a POM antes de guardarlo en `tests/e2e/`.
 
 ## Comandos
