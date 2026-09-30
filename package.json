@@ -1,0 +1,39 @@
+{
+  "name": "playwright-mcp-pom",
+  "version": "1.0.0",
+  "description": "Proyecto de automatización E2E con Playwright + TypeScript, arquitectura Page Object Model (POM) e integración con Playwright MCP.",
+  "private": true,
+  "scripts": {
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "test:ui": "playwright test --ui",
+    "test:debug": "playwright test --debug",
+    "test:smoke": "playwright test --grep @smoke",
+    "test:regression": "playwright test --grep @regression",
+    "test:chromium": "playwright test --project=chromium",
+    "report": "playwright show-report",
+    "codegen": "playwright codegen https://www.saucedemo.com",
+    "typecheck": "tsc --noEmit",
+    "mcp": "playwright-mcp --config playwright-mcp.config.json",
+    "mcp:headed": "playwright-mcp --browser chromium --caps vision",
+    "install:browsers": "playwright install --with-deps"
+  },
+  "keywords": [
+    "playwright",
+    "typescript",
+    "pom",
+    "mcp",
+    "e2e"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
+  "devDependencies": {
+    "@playwright/mcp": "^0.0.83",
+    "@playwright/test": "^1.63.0",
+    "@types/node": "^26.6.3",
+    "dotenv": "^18.0.4",
+    "typescript": "^7.0.2"
+  }
+}
