@@ -20,7 +20,7 @@ Aplicación bajo prueba: https://www.saucedemo.com (atributo de test: `data-test
    Nada de `waitForTimeout`.
 8. Usa el fixture `evidence` para registrar evidencias: `evidence.step('descripción', async () => {...})`
    en los pasos de negocio y `evidence.capture('descripción')` en los puntos de verificación clave.
-   Las capturas aparecen en el reporte PDF (`evidence-report/`).
+   Las capturas aparecen en el PDF consolidado y en el PDF de cada caso (`evidence-report/<fecha>/casos/`).
 9. Cuando el MCP genere código "crudo", refactorízalo a POM antes de guardarlo en `tests/e2e/`.
 
 ## Comandos

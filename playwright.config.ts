@@ -26,6 +26,8 @@ export default defineConfig({
               title: 'Reporte de evidencias de pruebas',
               project: 'Sauce Demo · Playwright + POM',
               outputDir: 'evidence-report',
+              consolidated: true, // reporte-evidencias.pdf con todos los casos
+              perTest: true, // casos/NN-<caso>-<navegador>.pdf, uno por caso
             },
           ] as const,
         ]
@@ -37,7 +39,8 @@ export default defineConfig({
     // Debe coincidir con `testIdAttribute` de playwright-mcp.config.json.
     testIdAttribute: 'data-test',
     trace: 'on-first-retry',
-    screenshot: 'only-on-failure',
+    // Captura final de cada caso: queda como evidencia en los PDF aunque el test no use `evidence`.
+    screenshot: 'on',
     video: 'retain-on-failure',
     actionTimeout: 10_000,
     navigationTimeout: 30_000,

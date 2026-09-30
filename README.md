@@ -80,11 +80,24 @@ Alias de importación disponibles: `@pages/*`, `@components/*`, `@fixtures/*`, `
 
 ## Reporte PDF de evidencias
 
-Cada ejecución genera un PDF en `evidence-report/reporte-evidencias-<fecha>.pdf` con:
+Cada ejecución crea una carpeta con la fecha y genera:
 
-- **Portada:** fecha, duración, resultado global, entorno, indicadores (total, exitosos, fallidos, inestables, omitidos, % de éxito) y tabla resumen.
-- **Una sección por caso:** suite, archivo, proyecto/navegador, estado, duración, etiquetas, pasos (✓/✗), mensaje de error y **capturas de evidencia** con su descripción.
-- Las capturas automáticas de Playwright (en fallos) y las rutas de video/trace.
+```
+evidence-report/
+└── 20260930-153000/
+    ├── reporte-evidencias.pdf        # consolidado con todos los casos
+    └── casos/                        # un PDF de evidencia por caso
+        ├── 01-compra-completa-de-extremo-a-extremo-smoke-chromium.pdf
+        ├── 02-el-codigo-postal-es-obligatorio-regression-chromium.pdf
+        └── ...
+```
+
+- **Consolidado:** portada con fecha, duración, resultado global, entorno, indicadores
+  (total, exitosos, fallidos, inestables, omitidos, % de éxito), tabla resumen y una sección por caso.
+- **PDF por caso:** evidencia puntual e independiente de cada caso: suite, archivo, navegador,
+  estado, duración, etiquetas, pasos (✓/✗), error si falló y **pantallazos de evidencia**.
+- Todo caso tiene al menos un pantallazo: `screenshot: 'on'` agrega la **captura final del caso**
+  aunque el test no use `evidence`.
 
 Las evidencias se registran desde los tests con el fixture `evidence`:
 
@@ -101,8 +114,9 @@ test('compra completa @smoke', async ({ loggedInPage, cartPage, evidence }) => {
 });
 ```
 
-Opciones del reporter en `playwright.config.ts` (`title`, `project`, `outputDir`, `fileName`,
-`includeAutoScreenshots`, `keepHtml`, `launchOptions`). Para desactivarlo en una ejecución:
+Opciones del reporter en `playwright.config.ts`: `title`, `project`, `outputDir`, `fileName`,
+`consolidated` (PDF consolidado, por defecto `true`), `perTest` (PDF por caso, por defecto `true`),
+`includeAutoScreenshots`, `keepHtml` y `launchOptions`. Para desactivarlo en una ejecución:
 `PDF_REPORT=false npx playwright test` (en PowerShell: `$env:PDF_REPORT='false'; npx playwright test`).
 
 > El PDF se genera con el Chromium de Playwright, así que debe estar instalado

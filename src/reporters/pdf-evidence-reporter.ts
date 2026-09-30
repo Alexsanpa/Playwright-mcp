@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { chromium, type LaunchOptions } from '@playwright/test';
+import { chromium, type LaunchOptions, type Page } from '@playwright/test';
 import type {
   FullConfig,
   FullResult,
@@ -14,10 +14,14 @@ import type {
 import { EVIDENCE_PREFIX } from '../utils/evidence';
 
 export interface PdfEvidenceReporterOptions {
-  /** Carpeta de salida del PDF. Por defecto `evidence-report`. */
+  /** Carpeta raíz de salida. Cada ejecución crea una subcarpeta con la fecha. Por defecto `evidence-report`. */
   outputDir?: string;
-  /** Nombre del archivo. Por defecto `reporte-evidencias-<fecha>.pdf`. */
+  /** Nombre del PDF consolidado. Por defecto `reporte-evidencias.pdf`. */
   fileName?: string;
+  /** Generar el PDF consolidado con todos los casos. Por defecto `true`. */
+  consolidated?: boolean;
+  /** Generar además un PDF independiente por cada caso en la carpeta `casos/`. Por defecto `true`. */
+  perTest?: boolean;
   /** Título que aparece en la portada. */
   title?: string;
   /** Nombre del proyecto / aplicación bajo prueba. */
@@ -117,34 +121,53 @@ export default class PdfEvidenceReporter implements Reporter {
   async onEnd(result: FullResult): Promise<void> {
     if (this.records.size === 0) return;
 
-    const outputDir = path.resolve(this.rootDir, this.options.outputDir ?? 'evidence-report');
-    const fileName = this.options.fileName ?? `reporte-evidencias-${timestamp(this.startTime)}.pdf`;
-    const pdfPath = path.join(outputDir, fileName);
-    fs.mkdirSync(outputDir, { recursive: true });
-
-    const html = this.renderHtml(result);
-    if (this.options.keepHtml) fs.writeFileSync(pdfPath.replace(/\.pdf$/, '.html'), html);
-
+    const runDir = path.resolve(this.rootDir, this.options.outputDir ?? 'evidence-report', timestamp(this.startTime));
+    const records = this.sortedRecords();
     const browser = await chromium.launch(this.options.launchOptions);
+    const page = await browser.newPage();
+
     try {
-      const page = await browser.newPage();
-      await page.setContent(html, { waitUntil: 'load' });
-      await page.pdf({
-        path: pdfPath,
-        format: 'A4',
-        printBackground: true,
-        margin: { top: '18mm', bottom: '18mm', left: '14mm', right: '14mm' },
-        displayHeaderFooter: true,
-        headerTemplate: `<div style="font-size:8px;width:100%;padding:0 14mm;color:#888;">${escapeHtml(this.title)}</div>`,
-        footerTemplate:
-          '<div style="font-size:8px;width:100%;padding:0 14mm;color:#888;text-align:right;">' +
-          'Página <span class="pageNumber"></span> de <span class="totalPages"></span></div>',
-      });
+      if (this.options.consolidated ?? true) {
+        const pdfPath = path.join(runDir, this.options.fileName ?? 'reporte-evidencias.pdf');
+        await this.printPdf(page, this.renderReport(result, records), pdfPath, this.title);
+        console.log(`\n📄 Reporte PDF consolidado: ${path.relative(process.cwd(), pdfPath)}`);
+      }
+
+      if (this.options.perTest ?? true) {
+        const casesDir = path.join(runDir, 'casos');
+        for (const [i, record] of records.entries()) {
+          const caseName = record.titlePath[record.titlePath.length - 1] ?? 'caso';
+          const fileName = `${String(i + 1).padStart(2, '0')}-${slugify(caseName)}-${slugify(record.project)}.pdf`;
+          await this.printPdf(page, this.renderCase(record, i + 1), path.join(casesDir, fileName), `Evidencia · ${caseName}`);
+        }
+        console.log(`📄 PDF de evidencia por caso (${records.length}): ${path.relative(process.cwd(), casesDir)}`);
+      }
     } finally {
       await browser.close();
     }
+  }
 
-    console.log(`\n📄 Reporte PDF de evidencias: ${path.relative(process.cwd(), pdfPath)}`);
+  private async printPdf(page: Page, html: string, pdfPath: string, headerText: string): Promise<void> {
+    fs.mkdirSync(path.dirname(pdfPath), { recursive: true });
+    if (this.options.keepHtml) fs.writeFileSync(pdfPath.replace(/\.pdf$/, '.html'), html);
+    await page.setContent(html, { waitUntil: 'load' });
+    await page.pdf({
+      path: pdfPath,
+      format: 'A4',
+      printBackground: true,
+      margin: { top: '18mm', bottom: '18mm', left: '14mm', right: '14mm' },
+      displayHeaderFooter: true,
+      headerTemplate: `<div style="font-size:8px;width:100%;padding:0 14mm;color:#888;">${escapeHtml(headerText)}</div>`,
+      footerTemplate:
+        '<div style="font-size:8px;width:100%;padding:0 14mm;color:#888;text-align:right;">' +
+        'Página <span class="pageNumber"></span> de <span class="totalPages"></span></div>',
+    });
+  }
+
+  private sortedRecords(): TestRecord[] {
+    return [...this.records.values()].sort(
+      (a, b) => a.file.localeCompare(b.file) || a.line - b.line || a.project.localeCompare(b.project),
+    );
   }
 
   private get title(): string {
@@ -166,7 +189,7 @@ export default class PdfEvidenceReporter implements Reporter {
         images.push({
           caption: isEvidence
             ? attachment.name.slice(EVIDENCE_PREFIX.length)
-            : 'Captura automática al finalizar el test',
+            : 'Captura final del caso (automática)',
           dataUri: `data:${attachment.contentType};base64,${body.toString('base64')}`,
         });
       } else if (attachment.path) {
@@ -176,10 +199,20 @@ export default class PdfEvidenceReporter implements Reporter {
     return { images, otherAttachments };
   }
 
-  private renderHtml(result: FullResult): string {
-    const records = [...this.records.values()].sort(
-      (a, b) => a.file.localeCompare(b.file) || a.line - b.line || a.project.localeCompare(b.project),
+  /** Documento independiente con la evidencia de un único caso. */
+  private renderCase(r: TestRecord, index: number): string {
+    return htmlDocument(
+      `Evidencia · ${r.titlePath[r.titlePath.length - 1] ?? ''}`,
+      `
+  <header class="case-header">
+    <div class="eyebrow">${escapeHtml(this.title)}${this.options.project ? ` · ${escapeHtml(this.options.project)}` : ''}</div>
+    <div class="muted">Ejecución: ${this.startTime.toLocaleString('es-ES')} · Caso ${index} de ${this.records.size}</div>
+  </header>
+  ${this.renderTest(r, index, true)}`,
     );
+  }
+
+  private renderReport(result: FullResult, records: TestRecord[]): string {
     const count = (outcome: TestRecord['outcome']) => records.filter((r) => r.outcome === outcome).length;
     const passed = count('expected');
     const failed = count('unexpected');
@@ -201,14 +234,9 @@ export default class PdfEvidenceReporter implements Reporter {
       )
       .join('');
 
-    return `<!doctype html>
-<html lang="es">
-<head>
-<meta charset="utf-8">
-<title>${escapeHtml(this.title)}</title>
-<style>${STYLES}</style>
-</head>
-<body>
+    return htmlDocument(
+      this.title,
+      `
   <section class="cover">
     <h1>${escapeHtml(this.title)}</h1>
     ${this.options.project ? `<p class="subtitle">${escapeHtml(this.options.project)}</p>` : ''}
@@ -236,12 +264,11 @@ export default class PdfEvidenceReporter implements Reporter {
     </table>
   </section>
 
-  ${records.map((r, i) => this.renderTest(r, i + 1)).join('')}
-</body>
-</html>`;
+  ${records.map((r, i) => this.renderTest(r, i + 1)).join('')}`,
+    );
   }
 
-  private renderTest(r: TestRecord, index: number): string {
+  private renderTest(r: TestRecord, index: number, standalone = false): string {
     const steps = r.steps.length
       ? `<h3>Pasos</h3><ol class="steps">${r.steps
           .map(
@@ -271,7 +298,7 @@ export default class PdfEvidenceReporter implements Reporter {
       : '';
 
     return `
-  <section class="test">
+  <section class="test${standalone ? ' standalone' : ''}">
     <h2>${index}. ${escapeHtml(r.titlePath[r.titlePath.length - 1] ?? '')}</h2>
     <table class="meta">
       <tr><th>Suite</th><td>${escapeHtml(r.titlePath.slice(0, -1).join(' › ') || '-')}</td></tr>
@@ -287,6 +314,31 @@ export default class PdfEvidenceReporter implements Reporter {
     ${others}
   </section>`;
   }
+}
+
+function htmlDocument(title: string, body: string): string {
+  return `<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>${escapeHtml(title)}</title>
+<style>${STYLES}</style>
+</head>
+<body>${body}
+</body>
+</html>`;
+}
+
+function slugify(text: string): string {
+  return (
+    text
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 60) || 'caso'
+  );
 }
 
 function flattenSteps(steps: TestStep[], depth = 0): StepRecord[] {
@@ -355,6 +407,9 @@ const STYLES = `
   h3 { font-size: 12px; margin: 14px 0 6px; text-transform: uppercase; letter-spacing: .04em; color: #57606a; }
   .subtitle { font-size: 14px; color: #57606a; margin: 0 0 16px; }
   .test { page-break-before: always; }
+  .test.standalone { page-break-before: auto; }
+  .case-header { border-bottom: 1px solid #d0d7de; padding-bottom: 8px; margin-bottom: 4px; }
+  .case-header .eyebrow { font-size: 13px; font-weight: 600; color: #1a4d8f; }
   table { border-collapse: collapse; width: 100%; }
   table.meta th { text-align: left; width: 140px; color: #57606a; font-weight: 600; padding: 3px 8px 3px 0; vertical-align: top; }
   table.meta td { padding: 3px 0; }
