@@ -4,6 +4,8 @@ import dotenv from 'dotenv';
 dotenv.config({ quiet: true });
 
 const isCI = !!process.env.CI;
+// Reporte PDF de evidencias: activo por defecto, se desactiva con PDF_REPORT=false.
+const pdfReport = process.env.PDF_REPORT !== 'false';
 
 export default defineConfig({
   testDir: './tests',
@@ -16,6 +18,18 @@ export default defineConfig({
   reporter: [
     ['list'],
     ['html', { open: 'never' }],
+    ...(pdfReport
+      ? [
+          [
+            './src/reporters/pdf-evidence-reporter.ts',
+            {
+              title: 'Reporte de evidencias de pruebas',
+              project: 'Sauce Demo · Playwright + POM',
+              outputDir: 'evidence-report',
+            },
+          ] as const,
+        ]
+      : []),
   ],
   use: {
     baseURL: process.env.BASE_URL ?? 'https://www.saucedemo.com',

@@ -6,14 +6,16 @@ test.describe('Login', () => {
     await loginPage.goto();
   });
 
-  test('usuario estándar inicia sesión correctamente @smoke', async ({ loginPage, inventoryPage }) => {
+  test('usuario estándar inicia sesión correctamente @smoke', async ({ loginPage, inventoryPage, evidence }) => {
     await loginPage.loginAs(users.standard);
     await inventoryPage.expectToBeOpen();
+    await evidence.capture('inventario tras iniciar sesión');
   });
 
-  test('usuario bloqueado ve un mensaje de error @regression', async ({ loginPage }) => {
+  test('usuario bloqueado ve un mensaje de error @regression', async ({ loginPage, evidence }) => {
     await loginPage.loginAs(users.lockedOut);
     await loginPage.expectError('Sorry, this user has been locked out.');
+    await evidence.capture('mensaje de usuario bloqueado');
   });
 
   test('credenciales inválidas muestran un error @regression', async ({ loginPage }) => {

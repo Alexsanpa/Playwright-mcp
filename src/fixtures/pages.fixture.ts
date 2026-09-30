@@ -1,6 +1,7 @@
 import { test as base, expect } from '@playwright/test';
 import { CartPage, CheckoutPage, InventoryPage, LoginPage } from '../pages';
 import { users } from '../data/users';
+import { Evidence } from '../utils/evidence';
 
 type Pages = {
   loginPage: LoginPage;
@@ -10,6 +11,8 @@ type Pages = {
 };
 
 type Session = {
+  /** Registro de evidencias (capturas) que se incluyen en el reporte PDF. */
+  evidence: Evidence;
   /** Página de inventario con el usuario estándar ya autenticado. */
   loggedInPage: InventoryPage;
 };
@@ -23,6 +26,8 @@ export const test = base.extend<Pages & Session>({
   inventoryPage: async ({ page }, use) => use(new InventoryPage(page)),
   cartPage: async ({ page }, use) => use(new CartPage(page)),
   checkoutPage: async ({ page }, use) => use(new CheckoutPage(page)),
+
+  evidence: async ({ page }, use, testInfo) => use(new Evidence(page, testInfo)),
 
   loggedInPage: async ({ loginPage, inventoryPage }, use) => {
     await loginPage.goto();
